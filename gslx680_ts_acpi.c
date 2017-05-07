@@ -54,7 +54,8 @@
 #define GSL_MAX_CONTACTS 10
 #define GSL_MAX_AXIS 0xfff
 #define GSL_DMAX 0
-#define GSL_JITTER 0
+#define GSL_JITTER_X 35
+#define GSL_JITTER_Y 15
 #define GSL_DEADZONE 0
 
 #define GSL_PACKET_SIZE ( \
@@ -97,7 +98,7 @@ struct gsl_ts_data {
 	struct input_dev *input;
 	struct gpio_desc *gpio;
 	char fw_name[GSL_FW_NAME_MAXLEN];
-	
+
 	enum gsl_ts_state state;
 
 	bool wake_irq_enabled;
@@ -109,7 +110,8 @@ struct gsl_ts_data {
 	bool y_reversed;
 	bool xy_swapped;
 	bool soft_tracking;
-	int jitter;
+	int x_jitter;
+	int y_jitter;
 	int deadzone;
 };
 
@@ -193,7 +195,8 @@ static int gsl_ts_init(struct gsl_ts_data *ts, const struct firmware *fw)
 	ts->y_reversed = header->yflipped ? 1 : 0;
 	ts->xy_swapped = header->swapped ? 1 : 0;
 	ts->soft_tracking = header->tracking ? 1 : 0;
-	ts->jitter = GSL_JITTER;
+	ts->x_jitter = GSL_JITTER_X;
+	ts->y_jitter = GSL_JITTER_Y;
 	ts->deadzone = GSL_DEADZONE;
 
 	return 0;
@@ -512,16 +515,16 @@ static int gsl_ts_probe(struct i2c_client *client, const struct i2c_device_id *i
 		error = -ENODEV;
 		goto release;
 	}
-	
+
 	ts = devm_kzalloc(&client->dev, sizeof(struct gsl_ts_data), GFP_KERNEL);
 	if (!ts) {
 		error = -ENOMEM;
 		goto release;
 	}
-	
+
 	ts->client = client;
 	i2c_set_clientdata(client, ts);
-	
+
 	if (gsl_fw_name != NULL) {
 		strncpy(ts->fw_name, gsl_fw_name, sizeof(ts->fw_name));
 	} else {
@@ -553,8 +556,8 @@ static int gsl_ts_probe(struct i2c_client *client, const struct i2c_device_id *i
 	input_set_capability(ts->input, EV_ABS, ABS_X);
 	input_set_capability(ts->input, EV_ABS, ABS_Y);
 
-	input_set_abs_params(ts->input, ABS_MT_POSITION_X, 0, ts->x_max, ts->jitter, ts->deadzone);
-	input_set_abs_params(ts->input, ABS_MT_POSITION_Y, 0, ts->y_max, ts->jitter, ts->deadzone);
+	input_set_abs_params(ts->input, ABS_MT_POSITION_X, 0, ts->x_max, ts->x_jitter, ts->deadzone);
+	input_set_abs_params(ts->input, ABS_MT_POSITION_Y, 0, ts->y_max, ts->y_jitter, ts->deadzone);
 
 	input_mt_init_slots(ts->input, ts->multi_touches, INPUT_MT_DIRECT | INPUT_MT_DROP_UNUSED | INPUT_MT_TRACK);
 
